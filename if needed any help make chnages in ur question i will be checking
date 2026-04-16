@@ -1,1 +1,63 @@
-guyzzzzz if u need any help keep where u uploaded question i will send all the best guyzzz
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = "thamaraiselvi28/html-demo:latest"
+    }
+
+    stages {
+
+        stage('Clean Workspace') {
+            steps {
+                deleteDir()
+            }
+        }
+
+        stage('Clone Code') {
+            steps {
+                git branch: 'main',
+                url: 'https://github.com/ThamaraiselviKuselan/FAT_LAB_AGILE.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                bat "docker build -t %DOCKER_IMAGE% ."
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'USER',
+                    passwordVariable: 'PASS'
+                )]) {
+                    bat "echo %PASS% | docker login -u %USER% --password-stdin"
+                    bat "docker push %DOCKER_IMAGE%"
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withCredentials([file(credentialsId: 'kuberconfig', variable: 'KUBECONFIG_FILE')]) {
+                    bat """
+                    set KUBECONFIG=%KUBECONFIG_FILE%
+                    kubectl apply -f deployment.yaml --validate=false
+                    kubectl get pods
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deployment Successful!"
+        }
+        failure {
+            echo "❌ Pipeline Failed! Check logs."
+        }
+    }
+}
